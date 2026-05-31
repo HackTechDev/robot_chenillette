@@ -1,22 +1,41 @@
 #include <Wire.h>
-#include <ZumoShield.h>
-#include <SoftwareSerial.h>   //Software Serial Port
+#include <ZumoMotors.h>
+#include <SoftwareSerial.h>
+#include <ServoTimer2.h>
+
 #define RxD 6
 #define TxD 7
 
-#define LED_PIN 13
+#define LED_PIN      13
+#define HEAD_PIN     11
+#define CLAW_PIN     12
 
 #define TURN_SPEED   200
 #define TURN_45_MS   150  // à calibrer selon le matériel réel
+
+// ServoTimer2 utilise des microsecondes : 750=0°, 1500=90°, 2250=180°
+#define SERVO_0    750
+#define SERVO_90   1500
+#define SERVO_180  2250
+
+// Positions de la pince — augmenter CLAW_CLOSE si le servo force en fermant
+#define CLAW_OPEN   SERVO_180
+#define CLAW_CLOSE  1550  // ~50° — à calibrer
 
 SoftwareSerial blueToothSerial(RxD, TxD);
 
 ZumoMotors motors;
 
+ServoTimer2 headservo;
+ServoTimer2 clawservo;
+
 void setup() {
   pinMode(LED_PIN, OUTPUT);
 
   Serial.begin(9600);
+  headservo.attach(HEAD_PIN);
+  clawservo.attach(CLAW_PIN);
+
   pinMode(RxD, INPUT);
   pinMode(TxD, OUTPUT);
   setupBlueToothConnection();
@@ -70,6 +89,22 @@ void loop() {
           delay(TURN_45_MS);
           motors.setLeftSpeed(0);
           motors.setRightSpeed(0);
+          break;
+
+        case 'w':
+          headservo.write(SERVO_90);
+          break;
+
+        case 'x':
+          headservo.write(SERVO_0);
+          break;
+
+        case 'c':
+          clawservo.write(CLAW_OPEN);
+          break;
+
+        case 'v':
+          clawservo.write(CLAW_CLOSE);
           break;
 
         default:
