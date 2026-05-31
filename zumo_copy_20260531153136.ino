@@ -40,7 +40,7 @@ void loop() {
         case 'z':          
           // Avance
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 300; speed++) {
+          for (int speed = 0; speed <= 200; speed++) {
             motors.setLeftSpeed(speed);
             motors.setRightSpeed(speed);
             delay(2);
@@ -50,7 +50,7 @@ void loop() {
         case 's':          
           // Reculer
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed >= -300; speed--) {
+          for (int speed = 0; speed >= -200; speed--) {
             motors.setLeftSpeed(speed);
             motors.setRightSpeed(speed);
             delay(2);
