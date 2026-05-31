@@ -69,20 +69,22 @@ void loop()
           }
           break;
         
-        case 'd':          
+        case 'd':
           // Tourner à droite
           digitalWrite(LED_PIN, HIGH);
           for (int speed = 0; speed <= 200; speed++) {
-            motors.setLeftSpeed(speed);            
+            motors.setLeftSpeed(speed);
+            motors.setRightSpeed(-speed);
             delay(2);
           }
           break;
 
-        case 'q':          
+        case 'q':
           // Tourner à gauche
           digitalWrite(LED_PIN, HIGH);
           for (int speed = 0; speed <= 200; speed++) {
             motors.setRightSpeed(speed);
+            motors.setLeftSpeed(-speed);
             delay(2);
           }
           break;
