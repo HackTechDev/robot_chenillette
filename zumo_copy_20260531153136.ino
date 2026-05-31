@@ -44,40 +44,47 @@ void loop()
 
 
       switch (recvChar) {
-        case 'z':
+        case 'z':          
           // run left motor forward
-
           digitalWrite(LED_PIN, HIGH);
-
-          for (int speed = 0; speed <= 400; speed++)
-          {
-            motors.setLeftSpeed(speed);
-            delay(2);
-          }
-
-          for (int speed = 400; speed >= 0; speed--)
-          {
-            motors.setLeftSpeed(speed);
-            delay(2);
-          }
-          break;
-        
-        case 's':
-          // run left motor forward
-
-          digitalWrite(LED_PIN, HIGH);
-
-          for (int speed = 0; speed <= 400; speed++)
+          for (int speed = 0; speed <= 300; speed++)
           {
             motors.setLeftSpeed(speed);
             motors.setRightSpeed(speed);
             delay(2);
           }
-
-          
           break;
         
+        case 's':          
+          // run left motor forward
+          digitalWrite(LED_PIN, HIGH);
+          for (int speed = 0; speed >= -300; speed--)
+          {
+            motors.setLeftSpeed(speed);
+            motors.setRightSpeed(speed);
+            delay(2);
+          }
+          break;
+        
+        case 'd':          
+          // run left motor forward
+          digitalWrite(LED_PIN, HIGH);
+          for (int speed = 0; speed <= 200; speed++)
+          {
+            motors.setLeftSpeed(speed);            
+            delay(2);
+          }
+          break;
 
+        case 'q':          
+          // run left motor forward
+          digitalWrite(LED_PIN, HIGH);
+          for (int speed = 0; speed <= 200; speed++)
+          {
+            motors.setRightSpeed(speed);          
+            delay(2);
+          }
+          break;
 
 
         default:
