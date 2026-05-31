@@ -51,3 +51,8 @@ La durée du pivot est définie par `TURN_45_MS` (défaut : `150` ms) dans le sk
 ```cpp
 #define TURN_45_MS   150  // augmenter si angle trop faible, diminuer si trop grand
 ```
+
+## Bibliothèque pour gére la pince
+
+[https://github.com/nabontra/ServoTimer2](https://github.com/nabontra/ServoTimer2)  
+
