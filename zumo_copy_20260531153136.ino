@@ -1,4 +1,3 @@
-#include <Servo.h>
 #include <Wire.h>
 #include <ZumoShield.h>
 #include <SoftwareSerial.h>   //Software Serial Port
@@ -13,10 +12,6 @@
 SoftwareSerial blueToothSerial(RxD, TxD);
 
 ZumoMotors motors;
-
-Servo headservo; 
-
-int pos = 0;
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
@@ -77,22 +72,6 @@ void loop() {
           motors.setRightSpeed(0);
           break;
 
-        case 'w':          
-          Serial.print("headservo");                
-        break;
-
-        case 'x':          
-          Serial.print("headservo");                
-        break;
-
-        case 'c':          
-          Serial.print("clawservo");                
-        break;
-
-        case 'v':          
-          Serial.print("clawservo");                
-          break;
-
         default:
           digitalWrite(LED_PIN, LOW);
           motors.setLeftSpeed(0);
@@ -109,7 +88,6 @@ void loop() {
 
   }
   
-  delay(500);
 }
 
 void setupBlueToothConnection() {
