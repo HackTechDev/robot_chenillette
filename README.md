@@ -34,8 +34,6 @@ Envoyer un caractère ASCII depuis une application Bluetooth (ex. Serial Bluetoo
 | `s` | Reculer (accélération progressive) |
 | `d` | Pivoter à droite de 45° |
 | `q` | Pivoter à gauche de 45° |
-| `w` / `x` | Servo tête *(à implémenter)* |
-| `c` / `v` | Servo pince *(à implémenter)* |
 | tout autre | Stop |
 
 ## Connexion Bluetooth
