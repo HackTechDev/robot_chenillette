@@ -1,19 +1,9 @@
-/*
- * This example uses the ZumoMotors library to drive each motor on the Zumo
- * forward, then backward. The yellow user LED is on when a motor should be
- * running forward and off when a motor should be running backward. If a
- * motor on your Zumo has been flipped, you can correct its direction by
- * uncommenting the call to flipLeftMotor() or flipRightMotor() in the setup()
- * function.
- */
-
 #include <Servo.h>
 #include <Wire.h>
 #include <ZumoShield.h>
 #include <SoftwareSerial.h>   //Software Serial Port
 #define RxD 6
 #define TxD 7
-
 
 #define LED_PIN 13
 
@@ -28,22 +18,17 @@ Servo headservo;
 
 int pos = 0;
 
-void setup()
-{
+void setup() {
   pinMode(LED_PIN, OUTPUT);
 
   Serial.begin(9600);
   pinMode(RxD, INPUT);
   pinMode(TxD, OUTPUT);
   setupBlueToothConnection();
-
-  
 }
 
-void loop()
-{
+void loop() {
   char recvChar;
-
 
   while(1){
     if(blueToothSerial.available()){//check if there's any data sent from the remote bluetooth shield
@@ -123,13 +108,11 @@ void loop()
     }
 
   }
-
   
   delay(500);
 }
 
-void setupBlueToothConnection()
-{
+void setupBlueToothConnection() {
   blueToothSerial.begin(38400); //Set BluetoothBee BaudRate to default baud rate 38400
   blueToothSerial.print("\r\n+STWMOD=0\r\n"); //set the bluetooth work in slave mode
   blueToothSerial.print("\r\n+STNA=BatMobile\r\n"); //set the bluetooth name as "BatMobile"
