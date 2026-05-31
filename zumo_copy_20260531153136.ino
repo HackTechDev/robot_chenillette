@@ -17,6 +17,9 @@
 
 #define LED_PIN 13
 
+#define TURN_SPEED   200
+#define TURN_45_MS   150  // à calibrer selon le matériel réel
+
 SoftwareSerial blueToothSerial(RxD, TxD);
 
 ZumoMotors motors;
@@ -70,23 +73,23 @@ void loop()
           break;
         
         case 'd':
-          // Tourner à droite
+          // Tourner à droite de 45°
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 200; speed++) {
-            motors.setLeftSpeed(speed);
-            motors.setRightSpeed(-speed);
-            delay(2);
-          }
+          motors.setLeftSpeed(TURN_SPEED);
+          motors.setRightSpeed(-TURN_SPEED);
+          delay(TURN_45_MS);
+          motors.setLeftSpeed(0);
+          motors.setRightSpeed(0);
           break;
 
         case 'q':
-          // Tourner à gauche
+          // Tourner à gauche de 45°
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 200; speed++) {
-            motors.setRightSpeed(speed);
-            motors.setLeftSpeed(-speed);
-            delay(2);
-          }
+          motors.setRightSpeed(TURN_SPEED);
+          motors.setLeftSpeed(-TURN_SPEED);
+          delay(TURN_45_MS);
+          motors.setLeftSpeed(0);
+          motors.setRightSpeed(0);
           break;
 
         case 'w':          
