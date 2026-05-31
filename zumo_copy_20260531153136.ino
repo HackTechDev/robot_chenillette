@@ -7,6 +7,7 @@
  * function.
  */
 
+#include <Servo.h>
 #include <Wire.h>
 #include <ZumoShield.h>
 #include <SoftwareSerial.h>   //Software Serial Port
@@ -20,6 +21,10 @@ SoftwareSerial blueToothSerial(RxD, TxD);
 
 ZumoMotors motors;
 
+Servo headservo; 
+
+int pos = 0;
+
 void setup()
 {
   pinMode(LED_PIN, OUTPUT);
@@ -29,14 +34,14 @@ void setup()
   pinMode(TxD, OUTPUT);
   setupBlueToothConnection();
 
-  // uncomment one or both of the following lines if your motors' directions need to be flipped
-  //motors.flipLeftMotor(true);
-  //motors.flipRightMotor(true);
+  
 }
 
 void loop()
 {
   char recvChar;
+
+
   while(1){
     if(blueToothSerial.available()){//check if there's any data sent from the remote bluetooth shield
       recvChar = blueToothSerial.read();
@@ -45,10 +50,9 @@ void loop()
 
       switch (recvChar) {
         case 'z':          
-          // run left motor forward
+          // Avance
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 300; speed++)
-          {
+          for (int speed = 0; speed <= 300; speed++) {
             motors.setLeftSpeed(speed);
             motors.setRightSpeed(speed);
             delay(2);
@@ -56,10 +60,9 @@ void loop()
           break;
         
         case 's':          
-          // run left motor forward
+          // Reculer
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed >= -300; speed--)
-          {
+          for (int speed = 0; speed >= -300; speed--) {
             motors.setLeftSpeed(speed);
             motors.setRightSpeed(speed);
             delay(2);
@@ -67,25 +70,37 @@ void loop()
           break;
         
         case 'd':          
-          // run left motor forward
+          // Tourner à droite
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 200; speed++)
-          {
+          for (int speed = 0; speed <= 200; speed++) {
             motors.setLeftSpeed(speed);            
             delay(2);
           }
           break;
 
         case 'q':          
-          // run left motor forward
+          // Tourner à gauche
           digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 200; speed++)
-          {
+          for (int speed = 0; speed <= 200; speed++) {
             motors.setRightSpeed(speed);          
             delay(2);
           }
-          break;
 
+        case 'w':          
+          Serial.print("headservo");                
+        break;
+
+        case 'x':          
+          Serial.print("headservo");                
+        break;
+
+        case 'c':          
+          Serial.print("clawservo");                
+        break;
+
+        case 'v':          
+          Serial.print("clawservo");                
+          break;
 
         default:
           digitalWrite(LED_PIN, LOW);
@@ -95,10 +110,12 @@ void loop()
       }
 
     }
+
     if(Serial.available()){//check if there's any data sent from the local serial terminal, you can add the other applications here
       recvChar  = Serial.read();
       blueToothSerial.print(recvChar);
     }
+
   }
 
   
@@ -109,7 +126,7 @@ void setupBlueToothConnection()
 {
   blueToothSerial.begin(38400); //Set BluetoothBee BaudRate to default baud rate 38400
   blueToothSerial.print("\r\n+STWMOD=0\r\n"); //set the bluetooth work in slave mode
-  blueToothSerial.print("\r\n+STNA=SeeedBTSlave\r\n"); //set the bluetooth name as "SeeedBTSlave"
+  blueToothSerial.print("\r\n+STNA=BatMobile\r\n"); //set the bluetooth name as "BatMobile"
   blueToothSerial.print("\r\n+STPIN=0000\r\n");//Set SLAVE pincode"0000"
   blueToothSerial.print("\r\n+STOAUT=1\r\n"); // Permit Paired device to connect me
   blueToothSerial.print("\r\n+STAUTO=0\r\n"); // Auto-connection should be forbidden here
