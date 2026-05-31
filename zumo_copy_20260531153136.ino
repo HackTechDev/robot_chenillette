@@ -82,9 +82,10 @@ void loop()
           // Tourner à gauche
           digitalWrite(LED_PIN, HIGH);
           for (int speed = 0; speed <= 200; speed++) {
-            motors.setRightSpeed(speed);          
+            motors.setRightSpeed(speed);
             delay(2);
           }
+          break;
 
         case 'w':          
           Serial.print("headservo");                
