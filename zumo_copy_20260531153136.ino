@@ -20,7 +20,7 @@
 
 // Positions de la tête — à calibrer
 #define HEAD_HIGH   1100 // Bas W
-#define HEAD_LOW    500 // Haut X
+#define HEAD_LOW    750 // Haut X
 
 // Positions de la pince — augmenter CLAW_CLOSE si le servo force en fermant
 #define CLAW_OPEN   SERVO_180
