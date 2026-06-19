@@ -44,7 +44,7 @@ Single `.ino` file with three sections:
 | 8 | ZumoShield — direction moteur gauche |
 | 9 | ZumoShield — PWM moteur droit |
 | 10 | ZumoShield — PWM moteur gauche |
-| 11 | Servo tête (`HEAD_PIN`) |
+| 4 | Servo tête (`HEAD_PIN`) |
 | 12 | Servo pince (`CLAW_PIN`) |
 | 13 | LED |
 
