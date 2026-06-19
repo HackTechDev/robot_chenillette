@@ -7,7 +7,7 @@
 #define TxD 7
 
 #define LED_PIN      13
-#define HEAD_PIN     11
+#define HEAD_PIN     4
 #define CLAW_PIN     12
 
 #define TURN_SPEED   200
@@ -17,6 +17,10 @@
 #define SERVO_0    750
 #define SERVO_90   1500
 #define SERVO_180  2250
+
+// Positions de la tête — à calibrer
+#define HEAD_HIGH   1100 // Bas W
+#define HEAD_LOW    500 // Haut X
 
 // Positions de la pince — augmenter CLAW_CLOSE si le servo force en fermant
 #define CLAW_OPEN   SERVO_180
@@ -81,11 +85,11 @@ void handleCommand(char c) {
       break;
 
     case 'w':
-      headservo.write(SERVO_90);
+      headservo.write(HEAD_HIGH);
       break;
 
     case 'x':
-      headservo.write(SERVO_0);
+      headservo.write(HEAD_LOW);
       break;
 
     case 'c':
