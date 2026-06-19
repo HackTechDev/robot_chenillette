@@ -20,7 +20,7 @@
 
 // Positions de la pince — augmenter CLAW_CLOSE si le servo force en fermant
 #define CLAW_OPEN   SERVO_180
-#define CLAW_CLOSE  1550  // ~50° — à calibrer
+#define CLAW_CLOSE  1550  // ~85° — à calibrer
 
 SoftwareSerial blueToothSerial(RxD, TxD);
 
@@ -41,88 +41,83 @@ void setup() {
   setupBlueToothConnection();
 }
 
+void handleCommand(char c) {
+  Serial.print(c);
+  switch (c) {
+    case 'z':
+      digitalWrite(LED_PIN, HIGH);
+      for (int speed = 0; speed <= 200; speed++) {
+        motors.setLeftSpeed(speed);
+        motors.setRightSpeed(speed);
+        delay(2);
+      }
+      break;
+
+    case 's':
+      digitalWrite(LED_PIN, HIGH);
+      for (int speed = 0; speed >= -200; speed--) {
+        motors.setLeftSpeed(speed);
+        motors.setRightSpeed(speed);
+        delay(2);
+      }
+      break;
+
+    case 'd':
+      digitalWrite(LED_PIN, HIGH);
+      motors.setLeftSpeed(TURN_SPEED);
+      motors.setRightSpeed(-TURN_SPEED);
+      delay(TURN_45_MS);
+      motors.setLeftSpeed(0);
+      motors.setRightSpeed(0);
+      break;
+
+    case 'q':
+      digitalWrite(LED_PIN, HIGH);
+      motors.setRightSpeed(TURN_SPEED);
+      motors.setLeftSpeed(-TURN_SPEED);
+      delay(TURN_45_MS);
+      motors.setLeftSpeed(0);
+      motors.setRightSpeed(0);
+      break;
+
+    case 'w':
+      headservo.write(SERVO_90);
+      break;
+
+    case 'x':
+      headservo.write(SERVO_0);
+      break;
+
+    case 'c':
+      clawservo.write(CLAW_OPEN);
+      break;
+
+    case 'v':
+      clawservo.write(CLAW_CLOSE);
+      break;
+
+    default:
+      digitalWrite(LED_PIN, LOW);
+      motors.setLeftSpeed(0);
+      motors.setRightSpeed(0);
+      break;
+  }
+}
+
 void loop() {
   char recvChar;
 
-  while(1){
-    if(blueToothSerial.available()){//check if there's any data sent from the remote bluetooth shield
+  while (1) {
+    if (blueToothSerial.available()) {
       recvChar = blueToothSerial.read();
-      Serial.print(recvChar);
-
-
-      switch (recvChar) {
-        case 'z':          
-          // Avance
-          digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed <= 200; speed++) {
-            motors.setLeftSpeed(speed);
-            motors.setRightSpeed(speed);
-            delay(2);
-          }
-          break;
-        
-        case 's':          
-          // Reculer
-          digitalWrite(LED_PIN, HIGH);
-          for (int speed = 0; speed >= -200; speed--) {
-            motors.setLeftSpeed(speed);
-            motors.setRightSpeed(speed);
-            delay(2);
-          }
-          break;
-        
-        case 'd':
-          // Tourner à droite de 45°
-          digitalWrite(LED_PIN, HIGH);
-          motors.setLeftSpeed(TURN_SPEED);
-          motors.setRightSpeed(-TURN_SPEED);
-          delay(TURN_45_MS);
-          motors.setLeftSpeed(0);
-          motors.setRightSpeed(0);
-          break;
-
-        case 'q':
-          // Tourner à gauche de 45°
-          digitalWrite(LED_PIN, HIGH);
-          motors.setRightSpeed(TURN_SPEED);
-          motors.setLeftSpeed(-TURN_SPEED);
-          delay(TURN_45_MS);
-          motors.setLeftSpeed(0);
-          motors.setRightSpeed(0);
-          break;
-
-        case 'w':
-          headservo.write(SERVO_90);
-          break;
-
-        case 'x':
-          headservo.write(SERVO_0);
-          break;
-
-        case 'c':
-          clawservo.write(CLAW_OPEN);
-          break;
-
-        case 'v':
-          clawservo.write(CLAW_CLOSE);
-          break;
-
-        default:
-          digitalWrite(LED_PIN, LOW);
-          motors.setLeftSpeed(0);
-          motors.setRightSpeed(0);
-          break;
-      }
-
+      handleCommand(recvChar);
     }
 
-    if(Serial.available()){//check if there's any data sent from the local serial terminal, you can add the other applications here
-      recvChar  = Serial.read();
-      blueToothSerial.print(recvChar);
+    if (Serial.available()) {
+      recvChar = Serial.read();
+      handleCommand(recvChar);
     }
-
   }
-  
 }
 
 void setupBlueToothConnection() {
