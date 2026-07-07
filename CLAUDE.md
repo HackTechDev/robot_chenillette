@@ -33,7 +33,8 @@ Single `.ino` file with three sections:
 
 1. **`setupBlueToothConnection()`** — initializes the Bluetooth module with AT commands: slave mode, device name, PIN, auto-accept pairing. Must be called once in `setup()`.
 2. **`setup()`** — configures LED pin, hardware Serial (9600 baud for debug), attaches servos, and calls Bluetooth setup.
-3. **`loop()`** — tight `while(1)` loop reading single-character commands from `blueToothSerial` and dispatching via `switch`.
+3. **`handleCommand(char c)`** — dispatches a command character via `switch`. Called from both `blueToothSerial` and hardware `Serial`.
+4. **`loop()`** — tight `while(1)` loop reading single-character commands from `blueToothSerial` or `Serial` and calling `handleCommand()`.
 
 ## Pin Assignment
 
@@ -58,8 +59,8 @@ Each command is a single ASCII character sent over Bluetooth:
 | `s` | Recule (rampe 0→-200, moteurs restent à -200) |
 | `d` | Pivote à droite 45° puis stop |
 | `q` | Pivote à gauche 45° puis stop |
-| `w` | Servo tête → 90° |
-| `x` | Servo tête → 0° |
+| `w` | Servo tête → position basse (`HEAD_HIGH` = 1100 µs) |
+| `x` | Servo tête → position haute (`HEAD_LOW` = 750 µs) |
 | `c` | Pince ouverte (`CLAW_OPEN` = 180°) |
 | `v` | Pince fermée (`CLAW_CLOSE` = ~85°, calibrable) |
 | tout autre | Stop (moteurs à 0, LED off) |
@@ -68,5 +69,9 @@ Motor speed range accepted by `ZumoMotors`: -400 to 400.
 
 ## Calibration
 
+ServoTimer2 utilise des microsecondes : `750`=0°, `1500`=90°, `2250`=180°. **Plage valide : 750–2250 µs** — une valeur hors plage perturbe le Timer 2 et peut casser la réception Bluetooth.
+
 - **`TURN_45_MS`** (défaut `150` ms) — durée du pivot, à ajuster pour obtenir exactement 45°.
-- **`CLAW_CLOSE`** (défaut `1550` µs ≈ 85°) — position de fermeture de la pince. ServoTimer2 utilise des microsecondes : `750`=0°, `1500`=90°, `2250`=180°. Augmenter si le servo force en fermant.
+- **`HEAD_HIGH`** (défaut `1100` µs) — position basse de la tête (commande `w`). Ajuster selon la mécanique.
+- **`HEAD_LOW`** (défaut `750` µs) — position haute de la tête (commande `x`). Minimum absolu = 750 µs.
+- **`CLAW_CLOSE`** (défaut `1550` µs ≈ 85°) — position de fermeture de la pince. Augmenter si le servo force en fermant.
