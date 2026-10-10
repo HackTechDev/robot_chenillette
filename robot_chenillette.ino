@@ -4,7 +4,7 @@
 #include <ServoTimer2.h>
 
 #define RxD 6
-#define TxD 7
+#define TxD 5  // pas 7 : utilisée par ZumoMotors (direction moteur droit)
 
 #define LED_PIN      13
 #define HEAD_PIN     4
@@ -12,6 +12,9 @@
 
 #define TURN_SPEED   200
 #define TURN_45_MS   150  // à calibrer selon le matériel réel
+
+// Arrêt de sécurité si aucune commande reçue pendant ce délai en mouvement (0 = désactivé)
+#define COMMAND_TIMEOUT_MS  500
 
 // ServoTimer2 utilise des microsecondes : 750=0°, 1500=90°, 2250=180°
 #define SERVO_0    750
@@ -33,6 +36,9 @@ ZumoMotors motors;
 ServoTimer2 headservo;
 ServoTimer2 clawservo;
 
+bool moving = false;
+unsigned long lastCommandMs = 0;
+
 void setup() {
   pinMode(LED_PIN, OUTPUT);
 
@@ -46,6 +52,10 @@ void setup() {
 }
 
 void handleCommand(char c) {
+  // Fins de ligne envoyées par le moniteur série ou l'appli BT : ignorées
+  if (c == '\r' || c == '\n') return;
+
+  lastCommandMs = millis();
   Serial.print(c);
   switch (c) {
     case 'z':
@@ -55,6 +65,7 @@ void handleCommand(char c) {
         motors.setRightSpeed(speed);
         delay(2);
       }
+      moving = true;
       break;
 
     case 's':
@@ -64,6 +75,7 @@ void handleCommand(char c) {
         motors.setRightSpeed(speed);
         delay(2);
       }
+      moving = true;
       break;
 
     case 'd':
@@ -101,11 +113,16 @@ void handleCommand(char c) {
       break;
 
     default:
-      digitalWrite(LED_PIN, LOW);
-      motors.setLeftSpeed(0);
-      motors.setRightSpeed(0);
+      stopMotors();
       break;
   }
+}
+
+void stopMotors() {
+  digitalWrite(LED_PIN, LOW);
+  motors.setLeftSpeed(0);
+  motors.setRightSpeed(0);
+  moving = false;
 }
 
 void loop() {
@@ -121,6 +138,10 @@ void loop() {
       recvChar = Serial.read();
       handleCommand(recvChar);
     }
+
+    if (COMMAND_TIMEOUT_MS > 0 && moving && millis() - lastCommandMs > COMMAND_TIMEOUT_MS) {
+      stopMotors();
+    }
   }
 }
 
@@ -135,5 +156,6 @@ void setupBlueToothConnection() {
   blueToothSerial.print("\r\n+INQ=1\r\n"); //make the slave bluetooth inquirable 
   Serial.println("The slave bluetooth is inquirable!");
   delay(2000); // This delay is required.
-  blueToothSerial.flush();
+  // Vide les réponses AT du module pour qu'elles ne soient pas lues comme des commandes
+  while (blueToothSerial.available()) blueToothSerial.read();
 }
