@@ -13,10 +13,11 @@
 #define RAMP_STEP_MS 2    // +1 de vitesse toutes les 2 ms (0→200 en ~400 ms)
 
 #define TURN_SPEED   200
-#define TURN_45_MS   150  // à calibrer selon le matériel réel
 
-// Arrêt de sécurité si aucune commande reçue pendant ce délai en mouvement (0 = désactivé)
-#define COMMAND_TIMEOUT_MS  500
+// Arrêt de sécurité si aucune commande reçue pendant ce délai en mouvement (0 = désactivé).
+// Désactivé : l'appli n'envoie qu'un caractère à l'appui et un espace (stop) au relâchement,
+// sans répétition ; une perte de liaison est signalée par le module (+BTSTATE…) → stop.
+#define COMMAND_TIMEOUT_MS  0
 
 // ServoTimer2 utilise des microsecondes : 750=0°, 1500=90°, 2250=180°
 #define SERVO_180  2250
@@ -41,7 +42,6 @@ int targetSpeed = 0;
 unsigned long lastRampMs = 0;
 
 bool pivoting = false;
-unsigned long pivotStartMs = 0;
 
 unsigned long lastCommandMs = 0;
 
@@ -114,12 +114,12 @@ void drive(int speed) {
   targetSpeed = speed;
 }
 
+// Pivot sur place : continue jusqu'à la commande suivante (espace envoyé au relâchement)
 void startPivot(int leftSpeed, int rightSpeed) {
   digitalWrite(LED_PIN, HIGH);
   currentSpeed = 0;
   targetSpeed = 0;
   pivoting = true;
-  pivotStartMs = millis();
   motors.setSpeeds(leftSpeed, rightSpeed);
 }
 
@@ -131,22 +131,17 @@ void stopMotors() {
   motors.setSpeeds(0, 0);
 }
 
-// Appelée à chaque tour de loop() : fait avancer la rampe et termine le pivot sans bloquer
+// Appelée à chaque tour de loop() : fait avancer la rampe et applique l'arrêt de sécurité
 void updateMotors() {
   unsigned long now = millis();
 
-  if (pivoting) {
-    if (now - pivotStartMs >= TURN_45_MS) stopMotors();
-    return;
-  }
-
-  if (currentSpeed != targetSpeed && now - lastRampMs >= RAMP_STEP_MS) {
+  if (!pivoting && currentSpeed != targetSpeed && now - lastRampMs >= RAMP_STEP_MS) {
     lastRampMs = now;
     currentSpeed += (targetSpeed > currentSpeed) ? 1 : -1;
     motors.setSpeeds(currentSpeed, currentSpeed);
   }
 
-  if (COMMAND_TIMEOUT_MS > 0 && (currentSpeed != 0 || targetSpeed != 0) &&
+  if (COMMAND_TIMEOUT_MS > 0 && (pivoting || currentSpeed != 0 || targetSpeed != 0) &&
       now - lastCommandMs > COMMAND_TIMEOUT_MS) {
     stopMotors();
   }

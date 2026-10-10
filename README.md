@@ -55,8 +55,8 @@ Les commandes sont des caractères ASCII uniques, acceptés depuis Bluetooth ou 
 |--------|--------|
 | `z` | Avancer (rampe progressive depuis la vitesse actuelle jusqu'à 200) |
 | `s` | Reculer (rampe progressive depuis la vitesse actuelle jusqu'à -200) |
-| `d` | Pivoter à droite de 45° |
-| `q` | Pivoter à gauche de 45° |
+| `d` | Pivoter à droite (jusqu'à la commande suivante) |
+| `q` | Pivoter à gauche (jusqu'à la commande suivante) |
 | `w` | Servo tête → position basse (`HEAD_DOWN`) |
 | `x` | Servo tête → position haute (`HEAD_UP`) |
 | `c` | Pince ouverte |
@@ -66,7 +66,9 @@ Les commandes sont des caractères ASCII uniques, acceptés depuis Bluetooth ou 
 
 ### Arrêt de sécurité
 
-Après `z` ou `s`, le robot s'arrête si aucune commande n'est reçue pendant `COMMAND_TIMEOUT_MS` (500 ms par défaut). L'appli de pilotage doit renvoyer la commande en continu tant que la touche est maintenue. Mettre `COMMAND_TIMEOUT_MS` à `0` pour désactiver.
+L'appli télécommande (`../robot_chenillette_telecommande`) envoie le caractère de la touche à l'appui (`z`, `s`, `q`, `d`) et un **espace** au relâchement, sans répéter la commande pendant l'appui. Le robot bouge donc tant que la touche est maintenue et s'arrête au relâchement.
+
+L'arrêt automatique par délai (`COMMAND_TIMEOUT_MS`) est **désactivé** (`0`) : avec cette appli, il couperait tout appui long. En cas de perte de liaison, le module envoie un message d'état (`+BTSTATE:…`) qui arrête le robot. Pour une appli qui répète les commandes en continu, on peut le réactiver (par exemple `500`).
 
 Les rampes et les pivots ne sont pas bloquants : une commande (par exemple un stop) est prise en compte immédiatement, même pendant une accélération ou un virage.
 
@@ -82,13 +84,10 @@ Le module se configure automatiquement au démarrage :
 
 ## Calibration
 
-### Angle de virage
+### Vitesses
 
-La durée du pivot est définie par `TURN_45_MS` (défaut : `150` ms). Ajuster si le robot ne tourne pas exactement à 45° :
-
-```cpp
-#define TURN_45_MS   150  // augmenter si angle trop faible, diminuer si trop grand
-```
+- `DRIVE_SPEED` (défaut `200`) — vitesse en ligne droite (`z` / `s`), plage -400 à 400.
+- `TURN_SPEED` (défaut `200`) — vitesse des chenilles pendant un pivot (`q` / `d`). Diminuer pour tourner plus lentement et viser plus précisément.
 
 ### Servos (ServoTimer2 en microsecondes)
 
@@ -183,6 +182,13 @@ Warning: attempt 1 of 10: not in sync: resp=0x00
 | LED restant allumée après un pivot | Le pivot se termine par `stopMotors()`, qui éteint la LED |
 | Code mort : `Wire.h`, `SERVO_0`, `SERVO_90`, `pinMode(RxD/TxD)`, `while(1)` dans `loop()` | Supprimés |
 | Renommage de `PololuBuzzer.cpp` annulé à chaque mise à jour de ZumoShield | Copie locale de `ZumoMotors` : la bibliothèque ZumoShield n'est plus utilisée |
+
+### Pivots continus (troisième passe)
+
+| Problème | Correction |
+|----------|------------|
+| `q` / `d` faisaient un pivot fixe de 45° (`TURN_45_MS`), quelle que soit la durée de l'appui | Pivot continu jusqu'à la commande suivante ; l'appli envoie désormais un espace au relâchement des boutons ↺ / ↻ |
+| L'arrêt par délai de 500 ms supposait une appli qui répète les commandes ; l'appli n'envoie qu'un caractère à l'appui et un espace au relâchement (constaté en enregistrant les commandes reçues) | `COMMAND_TIMEOUT_MS` mis à `0` ; la perte de liaison reste détectée via `+BTSTATE` |
 
 ### Contraintes matérielles (non corrigeables par logiciel)
 
