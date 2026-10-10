@@ -104,6 +104,39 @@ La durée du pivot est définie par `TURN_45_MS` (défaut : `150` ms). Ajuster s
 
 > **Note** : ServoTimer2 accepte des valeurs entre **750 µs** (0°) et **2250 µs** (180°) ; toute valeur hors plage est automatiquement ramenée dans ces bornes.
 
+## Erreurs rencontrées et résolutions
+
+### `cannot open port /dev/ttyUSB0: Permission denied`
+
+```
+OS error: cannot open port /dev/ttyUSB0: Permission denied
+Error: unable to open port /dev/ttyUSB0 for programmer arduino
+Failed uploading: uploading error: exit status 1
+```
+
+**Cause** : le port série appartient au groupe `dialout` (`crw-rw---- root dialout`) et l'utilisateur n'en fait pas partie.
+
+**Résolution** :
+
+```bash
+# Permanent (se déconnecter puis se reconnecter à la session Linux ensuite)
+sudo usermod -aG dialout $USER
+
+# Temporaire (perdu au débranchement de la carte ou au redémarrage)
+sudo chmod a+rw /dev/ttyUSB0
+```
+
+### `programmer is not responding` / `not in sync: resp=0x00`
+
+```
+Error: programmer is not responding
+Warning: attempt 1 of 10: not in sync: resp=0x00
+```
+
+**Cause** : la carte n'est pas une Arduino Uno. Elle utilise une puce USB FTDI FT232 (`lsusb` : `0403:6001`) et un ancien bootloader qui communique à **57600 bauds**, alors que le profil « Arduino Uno » téléverse à 115200 bauds. Diagnostic avec `avrdude` : aucune réponse à 115200, réponse correcte à 57600 (`Device signature = 1E 95 0F (ATmega328P)`, bootloader 1.16).
+
+**Résolution** : dans l'IDE, *Outils > Type de carte* → **Arduino Duemilanove or Diecimila**, *Processeur* → **ATmega328P**. Avec `arduino-cli` : `--fqbn arduino:avr:diecimila:cpu=atmega328`. Fermer le moniteur série avant de téléverser.
+
 ## Analyse du code et problèmes connus
 
 ### Corrigés
