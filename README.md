@@ -17,8 +17,8 @@ Projet Arduino pour contrôler un robot Zumo Shield à distance via Bluetooth ou
 
 | Module BT | Arduino |
 |-----------|---------|
-| RX        | Pin 5   |
-| TX        | Pin 6   |
+| TX        | Pin 5 (`RxD`) |
+| RX        | Pin 6 (`TxD`) |
 
 > La pin 7 est réservée par le Zumo Shield (direction du moteur droit) : ne pas y brancher le module BT.
 
@@ -31,16 +31,9 @@ Projet Arduino pour contrôler un robot Zumo Shield à distance via Bluetooth ou
 
 ## Installation des bibliothèques
 
-1. Depuis le gestionnaire de bibliothèques Arduino :
-   - `ZumoShield`
+- [`ServoTimer2`](https://github.com/nabontra/ServoTimer2) — à installer manuellement (ZIP depuis GitHub). Utilise le Timer 2 pour éviter le conflit avec le PWM moteur (Timer 1, pins 9 et 10).
 
-2. Manuellement (ZIP depuis GitHub) :
-   - [`ServoTimer2`](https://github.com/nabontra/ServoTimer2) — utilise le Timer 2 pour éviter le conflit avec le PWM moteur (Timer 1, pins 9 et 10)
-
-3. Désactiver le buzzer Zumo pour éviter un conflit Timer 2 avec ServoTimer2 :
-   ```bash
-   mv ~/Arduino/libraries/ZumoShield/PololuBuzzer.cpp ~/Arduino/libraries/ZumoShield/PololuBuzzer.cpp.bak
-   ```
+La bibliothèque `ZumoShield` n'est **plus nécessaire** : `ZumoMotors.h/.cpp` sont copiés dans le dossier du croquis (licence MIT, voir `LICENSE-ZumoShield.txt`). Cela évite de compiler `PololuBuzzer.cpp`, qui entre en conflit avec ServoTimer2 sur le Timer 2 ; il n'est donc plus nécessaire de le renommer en `.bak`.
 
 ## Compilation et téléversement
 
@@ -60,20 +53,24 @@ Les commandes sont des caractères ASCII uniques, acceptés depuis Bluetooth ou 
 
 | Touche | Action |
 |--------|--------|
-| `z` | Avancer (accélération progressive) |
-| `s` | Reculer (accélération progressive) |
+| `z` | Avancer (rampe progressive depuis la vitesse actuelle jusqu'à 200) |
+| `s` | Reculer (rampe progressive depuis la vitesse actuelle jusqu'à -200) |
 | `d` | Pivoter à droite de 45° |
 | `q` | Pivoter à gauche de 45° |
-| `w` | Servo tête → position basse (`HEAD_HIGH`) |
-| `x` | Servo tête → position haute (`HEAD_LOW`) |
+| `w` | Servo tête → position basse (`HEAD_DOWN`) |
+| `x` | Servo tête → position haute (`HEAD_UP`) |
 | `c` | Pince ouverte |
 | `v` | Pince fermée |
 | `\r`, `\n` | Ignorés (fins de ligne du moniteur série / de l'appli) |
-| tout autre | Stop (moteurs à 0) |
+| tout autre | Stop immédiat (moteurs à 0, LED éteinte) |
 
 ### Arrêt de sécurité
 
 Après `z` ou `s`, le robot s'arrête si aucune commande n'est reçue pendant `COMMAND_TIMEOUT_MS` (500 ms par défaut). L'appli de pilotage doit renvoyer la commande en continu tant que la touche est maintenue. Mettre `COMMAND_TIMEOUT_MS` à `0` pour désactiver.
+
+Les rampes et les pivots ne sont pas bloquants : une commande (par exemple un stop) est prise en compte immédiatement, même pendant une accélération ou un virage.
+
+Au démarrage, le Bluetooth est configuré en premier (environ 4 s), puis la tête est placée en position haute (`HEAD_UP`) et la pince ouverte (`CLAW_OPEN`).
 
 ## Connexion Bluetooth
 
@@ -97,8 +94,8 @@ La durée du pivot est définie par `TURN_45_MS` (défaut : `150` ms). Ajuster s
 
 | Constante   | Valeur par défaut | Description |
 |-------------|-------------------|-------------|
-| `HEAD_HIGH` | `1100` µs         | Position basse de la tête (commande `w`) |
-| `HEAD_LOW`  | `750` µs          | Position haute de la tête (commande `x`) |
+| `HEAD_DOWN` | `1100` µs         | Position basse de la tête (commande `w`) |
+| `HEAD_UP`   | `750` µs          | Position haute de la tête (commande `x`) |
 | `CLAW_OPEN` | `2250` µs         | Pince ouverte (commande `c`) |
 | `CLAW_CLOSE`| `1550` µs (~85°)  | Pince fermée (commande `v`) |
 
@@ -137,13 +134,37 @@ Warning: attempt 1 of 10: not in sync: resp=0x00
 
 **Résolution** : dans l'IDE, *Outils > Type de carte* → **Arduino Duemilanove or Diecimila**, *Processeur* → **ATmega328P**. Avec `arduino-cli` : `--fqbn arduino:avr:diecimila:cpu=atmega328`. Fermer le moniteur série avant de téléverser.
 
+### Module Bluetooth invisible (« BatMobile » non détecté)
+
+**Symptôme** : ni le smartphone ni le PC ne voient « BatMobile », alors que la console série affiche bien `The slave bluetooth is inquirable!`.
+
+**Cause** : le Bluetooth Bee ne devient visible qu'après avoir reçu `+INQ=1`. Les liaisons RX/TX entre l'Arduino et le module étaient inversées par rapport au code : les commandes AT n'atteignaient jamais le module.
+
+**Diagnostic** : un croquis de test envoyant `AT` et `+INQ=1` à 9600–115200 bauds n'obtenait aucune réponse avec RX=6/TX=5 ; en inversant (RX=5/TX=6), le module répond à **38400 bauds** par `OK` puis `+BTSTATE:2` (mode visible).
+
+**Résolution** : `RxD` = pin 5 (sortie TX du module), `TxD` = pin 6 (entrée RX du module). Après reset, « BatMobile » apparaît (adresse `00:18:A1:12:16:C5`).
+
+> Rappel : le Bluetooth Bee est en Bluetooth classique (SPP) ; il n'est pas visible depuis un iPhone.
+
+### Module qui clignote en bleu, robot muet après redémarrage
+
+**Symptôme** : après un redémarrage (USB débranché, ou simple reset), le module Bluetooth clignote en bleu, « BatMobile » n'est plus visible et la console n'affiche rien (ou un message coupé : `The slave bluetooth is i…`).
+
+**Cause** : chute de tension au démarrage. Les servos étaient envoyés en butée (tête 750 µs, pince 2250 µs) **avant** la configuration Bluetooth ; l'appel de courant des servos cumulé à celui du module au moment de `+INQ=1` faisait redémarrer la carte en boucle. Le module, jamais configuré, reste en attente (clignotement bleu).
+
+**Diagnostic** : la même séquence Bluetooth sans servos démarre correctement à chaque fois ; les servos seuls aussi.
+
+**Résolution** : dans `setup()`, configuration Bluetooth **d'abord**, puis attache des servos un par un (500 ms d'écart).
+
+> Sur batteries, utiliser des piles chargées. Si un servo vibre ou force en butée, ajuster `HEAD_UP` / `CLAW_OPEN` : un servo bloqué consomme beaucoup de courant et peut encore faire chuter la tension.
+
 ## Analyse du code et problèmes connus
 
 ### Corrigés
 
 | Problème | Correction |
 |----------|------------|
-| Le TX Bluetooth (pin 7) partageait la pin de direction du moteur droit (`DIR_R` = 7 dans `ZumoMotors.cpp`) : chaque changement de sens du moteur envoyait des parasites au module BT | TX déplacé sur la **pin 5** |
+| Le TX Bluetooth (pin 7) partageait la pin de direction du moteur droit (`DIR_R` = 7 dans `ZumoMotors.cpp`) : chaque changement de sens du moteur envoyait des parasites au module BT | Liaison BT déplacée sur les **pins 5 et 6** (voir câblage) |
 | `\r` / `\n` envoyés par le moniteur série ou l'appli tombaient dans le `default` et arrêtaient aussitôt le robot | Fins de ligne ignorées |
 | Aucune sécurité : après `z`/`s`, le robot roulait indéfiniment si la liaison BT était perdue | Arrêt automatique après `COMMAND_TIMEOUT_MS` sans commande |
 | `blueToothSerial.flush()` ne vide pas le tampon de réception : les réponses AT du module étaient lues comme des commandes | Lecture du tampon jusqu'à ce qu'il soit vide |
@@ -151,14 +172,20 @@ Warning: attempt 1 of 10: not in sync: resp=0x00
 
 > Le correctif `HEAD_LOW` 500→750 µs n'avait pas d'effet réel : `ServoTimer2::write()` ramène déjà toute valeur < 750 µs à 750 µs.
 
-### Restants (non corrigés)
+### Corrigés (deuxième passe)
 
-- **Pin 12** : partagée entre le servo pince et le bouton utilisateur du Zumo (`ZUMO_BUTTON`). Appuyer sur le bouton met le signal du servo à la masse.
-- **Pins 4 et 5** : utilisées par la barre de capteurs de ligne Zumo ; incompatibles avec son montage.
-- **Rampes** : `z`/`s` repartent toujours de 0, d'où un à-coup si la commande est répétée ou si le sens s'inverse.
-- **Commandes bloquantes** : rampe (~400 ms) et pivot (150 ms) utilisent `delay()` ; aucune commande n'est traitée pendant ce temps.
-- **Servos au démarrage** : aucune position initiale, ils partent à 1500 µs (90°).
-- **Noms inversés** : `HEAD_HIGH` = position basse, `HEAD_LOW` = position haute.
-- **LED** : reste allumée après un pivot alors que les moteurs sont arrêtés.
-- **Code mort** : `#include <Wire.h>`, `SERVO_0`, `SERVO_90` inutilisés ; `pinMode(RxD/TxD)` redondants avec SoftwareSerial.
-- **`PololuBuzzer.cpp.bak`** : le renommage sera annulé à chaque mise à jour de la bibliothèque ZumoShield.
+| Problème | Correction |
+|----------|------------|
+| Rampes repartant toujours de 0 (à-coup si la commande est répétée ou si le sens s'inverse) | La rampe part de la vitesse actuelle ; une inversion passe progressivement de 200 à -200 |
+| Commandes bloquantes : rampe (~400 ms) et pivot (150 ms) en `delay()` | Machine à états non bloquante (`updateMotors()` appelée à chaque `loop()`, basée sur `millis()`) |
+| Servos sans position initiale (1500 µs au démarrage) | Tête haute et pince ouverte dans `setup()`, **après** la configuration Bluetooth |
+| Noms inversés `HEAD_HIGH` (= bas) / `HEAD_LOW` (= haut) | Renommés `HEAD_DOWN` / `HEAD_UP` |
+| LED restant allumée après un pivot | Le pivot se termine par `stopMotors()`, qui éteint la LED |
+| Code mort : `Wire.h`, `SERVO_0`, `SERVO_90`, `pinMode(RxD/TxD)`, `while(1)` dans `loop()` | Supprimés |
+| Renommage de `PololuBuzzer.cpp` annulé à chaque mise à jour de ZumoShield | Copie locale de `ZumoMotors` : la bibliothèque ZumoShield n'est plus utilisée |
+
+### Contraintes matérielles (non corrigeables par logiciel)
+
+- **Pin 12** : partagée entre le servo pince et le bouton utilisateur du Zumo (`ZUMO_BUTTON`). Ne pas appuyer sur le bouton : il met le signal du servo à la masse. Pour supprimer le conflit, brancher la pince sur une pin libre (par exemple 11 ou 2) et modifier `CLAW_PIN`.
+- **Pins 4 et 5** : utilisées par la barre de capteurs de ligne Zumo ; le câblage actuel est incompatible avec son montage.
+- **Pin 6** : sur les cartes à ATmega32U4 (Leonardo), le buzzer du Zumo est sur la pin 6 ; sans incidence ici (ATmega328P, buzzer sur la pin 3).

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Arduino sketch for a Zumo Shield robot controlled remotely over Bluetooth. The Bluetooth module (SeeedStudio Bluetooth Bee or compatible) is configured in slave mode, named **BatMobile**, PIN `0000`, on a SoftwareSerial link (RX=pin 6, TX=pin 5 at 38400 baud).
+Arduino sketch for a Zumo Shield robot controlled remotely over Bluetooth. The Bluetooth module (SeeedStudio Bluetooth Bee or compatible) is configured in slave mode, named **BatMobile**, PIN `0000`, on a SoftwareSerial link (RxD=pin 5 ← TX module, TxD=pin 6 → RX module, 38400 baud).
 
 ## Build & Flash
 
@@ -19,30 +19,30 @@ arduino-cli upload -p /dev/ttyUSB0 --fqbn arduino:avr:diecimila:cpu=atmega328 .
 ```
 
 Required libraries (install via Arduino Library Manager or `arduino-cli lib install`):
-- `ZumoShield` — seule `ZumoMotors.h` est incluse (pas `ZumoShield.h`) pour éviter le conflit Timer 2 avec `PololuBuzzer`
 - `ServoTimer2` — à installer manuellement depuis GitHub (ZIP). Utilise le Timer 2 au lieu du Timer 1, évitant le conflit avec le PWM moteur du ZumoShield (pins 9 et 10)
-- `Wire` (bundled)
 - `SoftwareSerial` (bundled)
 
-> **Important** : `PololuBuzzer.cpp` dans la bibliothèque ZumoShield doit être renommé en `.cpp.bak` pour éviter un conflit Timer 2 avec ServoTimer2 :
-> `mv ~/Arduino/libraries/ZumoShield/PololuBuzzer.cpp ~/Arduino/libraries/ZumoShield/PololuBuzzer.cpp.bak`
+`ZumoMotors.h/.cpp` sont une **copie locale** de la bibliothèque Pololu ZumoShield 2.1.0 (MIT, `LICENSE-ZumoShield.txt`), incluse avec `#include "ZumoMotors.h"`. Ne pas la remplacer par `<ZumoMotors.h>` : la bibliothèque complète compilerait `PololuBuzzer.cpp`, dont l'ISR Timer 2 entre en conflit avec ServoTimer2.
 
 ## Architecture
 
-Single `.ino` file:
+`robot_chenillette.ino` + copie locale `ZumoMotors.h/.cpp`. Le pilotage moteur est **non bloquant** (pas de `delay()` hors setup) :
 
-1. **`setupBlueToothConnection()`** — initializes the Bluetooth module with AT commands: slave mode, device name, PIN, auto-accept pairing. Must be called once in `setup()`.
-2. **`setup()`** — configures LED pin, hardware Serial (9600 baud for debug), attaches servos, and calls Bluetooth setup.
-3. **`handleCommand(char c)`** — dispatches a command character via `switch`. Called from both `blueToothSerial` and hardware `Serial`. Ignores `\r` / `\n` and records the time of the last command.
-4. **`stopMotors()`** — stops both motors, turns the LED off, clears the `moving` flag.
-5. **`loop()`** — tight `while(1)` loop reading single-character commands from `blueToothSerial` or `Serial` and calling `handleCommand()`. Also enforces the failsafe: if moving and no command for `COMMAND_TIMEOUT_MS`, calls `stopMotors()`.
+1. **`setupBlueToothConnection()`** — initializes the Bluetooth module with AT commands (slave mode, name, PIN, auto-accept pairing), then drains the RX buffer.
+2. **`setup()`** — LED pin, hardware Serial (9600 baud debug), Bluetooth setup **first**, then attaches servos one at a time (`HEAD_UP`, 500 ms, `CLAW_OPEN`). Order matters: servo inrush during `+INQ=1` browned out the board.
+3. **`handleCommand(char c)`** — dispatches a command character via `switch`. Called from both `blueToothSerial` and `Serial`. Ignores `\r` / `\n` and records `lastCommandMs`.
+4. **`drive(speed)`** — sets `targetSpeed`; the ramp starts from `currentSpeed`.
+5. **`startPivot(left, right)`** — starts a pivot, ended by `updateMotors()` after `TURN_45_MS`.
+6. **`stopMotors()`** — immediate stop, LED off, resets state.
+7. **`updateMotors()`** — called every `loop()`: advances the ramp by 1 every `RAMP_STEP_MS`, ends pivots, enforces the `COMMAND_TIMEOUT_MS` failsafe.
+8. **`loop()`** — reads one char from each serial link, then calls `updateMotors()`.
 
 ## Pin Assignment
 
 | Pin | Usage |
 |-----|-------|
-| 5 | TxD Bluetooth (SoftwareSerial) |
-| 6 | RxD Bluetooth (SoftwareSerial) |
+| 5 | RxD Bluetooth (SoftwareSerial) ← TX du module |
+| 6 | TxD Bluetooth (SoftwareSerial) → RX du module |
 | 7 | ZumoShield — direction moteur droit (ne pas réutiliser) |
 | 8 | ZumoShield — direction moteur gauche |
 | 9 | ZumoShield — PWM moteur droit |
@@ -57,12 +57,12 @@ Each command is a single ASCII character sent over Bluetooth:
 
 | Char | Action |
 |------|--------|
-| `z` | Avance (rampe 0→200, moteurs restent à 200) |
-| `s` | Recule (rampe 0→-200, moteurs restent à -200) |
+| `z` | Avance (rampe depuis la vitesse actuelle → 200, reste à 200) |
+| `s` | Recule (rampe depuis la vitesse actuelle → -200, reste à -200) |
 | `d` | Pivote à droite 45° puis stop |
 | `q` | Pivote à gauche 45° puis stop |
-| `w` | Servo tête → position basse (`HEAD_HIGH` = 1100 µs) |
-| `x` | Servo tête → position haute (`HEAD_LOW` = 750 µs) |
+| `w` | Servo tête → position basse (`HEAD_DOWN` = 1100 µs) |
+| `x` | Servo tête → position haute (`HEAD_UP` = 750 µs) |
 | `c` | Pince ouverte (`CLAW_OPEN` = 180°) |
 | `v` | Pince fermée (`CLAW_CLOSE` = ~85°, calibrable) |
 | `\r`, `\n` | Ignorés (fins de ligne) |
@@ -77,7 +77,8 @@ Motor speed range accepted by `ZumoMotors`: -400 to 400.
 ServoTimer2 utilise des microsecondes : `750`=0°, `1500`=90°, `2250`=180°. **Plage valide : 750–2250 µs** — `ServoTimer2::write()` borne automatiquement toute valeur hors plage.
 
 - **`COMMAND_TIMEOUT_MS`** (défaut `500` ms) — délai du failsafe. `0` désactive l'arrêt automatique.
+- **`RAMP_STEP_MS`** (défaut `2` ms) — intervalle entre deux incréments de vitesse de la rampe.
 - **`TURN_45_MS`** (défaut `150` ms) — durée du pivot, à ajuster pour obtenir exactement 45°.
-- **`HEAD_HIGH`** (défaut `1100` µs) — position basse de la tête (commande `w`). Ajuster selon la mécanique.
-- **`HEAD_LOW`** (défaut `750` µs) — position haute de la tête (commande `x`). Minimum absolu = 750 µs.
+- **`HEAD_DOWN`** (défaut `1100` µs) — position basse de la tête (commande `w`). Ajuster selon la mécanique.
+- **`HEAD_UP`** (défaut `750` µs) — position haute de la tête (commande `x`). Minimum absolu = 750 µs.
 - **`CLAW_CLOSE`** (défaut `1550` µs ≈ 85°) — position de fermeture de la pince. Augmenter si le servo force en fermant.

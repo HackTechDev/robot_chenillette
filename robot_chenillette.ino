@@ -1,14 +1,16 @@
-#include <Wire.h>
-#include <ZumoMotors.h>
 #include <SoftwareSerial.h>
 #include <ServoTimer2.h>
+#include "ZumoMotors.h"  // copie locale : n'entraîne pas la compilation de PololuBuzzer
 
-#define RxD 6
-#define TxD 5  // pas 7 : utilisée par ZumoMotors (direction moteur droit)
+#define RxD 5  // reçoit la sortie TX du module
+#define TxD 6  // vers l'entrée RX du module (pas 7 : direction moteur droit ZumoMotors)
 
 #define LED_PIN      13
 #define HEAD_PIN     4
 #define CLAW_PIN     12
+
+#define DRIVE_SPEED  200
+#define RAMP_STEP_MS 2    // +1 de vitesse toutes les 2 ms (0→200 en ~400 ms)
 
 #define TURN_SPEED   200
 #define TURN_45_MS   150  // à calibrer selon le matériel réel
@@ -17,13 +19,11 @@
 #define COMMAND_TIMEOUT_MS  500
 
 // ServoTimer2 utilise des microsecondes : 750=0°, 1500=90°, 2250=180°
-#define SERVO_0    750
-#define SERVO_90   1500
 #define SERVO_180  2250
 
 // Positions de la tête — à calibrer
-#define HEAD_HIGH   1100 // Bas W
-#define HEAD_LOW    750 // Haut X
+#define HEAD_DOWN   1100 // commande w
+#define HEAD_UP     750  // commande x
 
 // Positions de la pince — augmenter CLAW_CLOSE si le servo force en fermant
 #define CLAW_OPEN   SERVO_180
@@ -36,19 +36,30 @@ ZumoMotors motors;
 ServoTimer2 headservo;
 ServoTimer2 clawservo;
 
-bool moving = false;
+int currentSpeed = 0;  // vitesse commune des deux moteurs en ligne droite
+int targetSpeed = 0;
+unsigned long lastRampMs = 0;
+
+bool pivoting = false;
+unsigned long pivotStartMs = 0;
+
 unsigned long lastCommandMs = 0;
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
 
   Serial.begin(9600);
-  headservo.attach(HEAD_PIN);
-  clawservo.attach(CLAW_PIN);
 
-  pinMode(RxD, INPUT);
-  pinMode(TxD, OUTPUT);
+  // Bluetooth d'abord : l'appel de courant des servos pendant l'activation du module
+  // provoquait une chute de tension et un redémarrage en boucle de la carte
   setupBlueToothConnection();
+
+  // Servos ensuite, un par un, pour étaler l'appel de courant
+  headservo.attach(HEAD_PIN);
+  headservo.write(HEAD_UP);
+  delay(500);
+  clawservo.attach(CLAW_PIN);
+  clawservo.write(CLAW_OPEN);
 }
 
 void handleCommand(char c) {
@@ -59,49 +70,27 @@ void handleCommand(char c) {
   Serial.print(c);
   switch (c) {
     case 'z':
-      digitalWrite(LED_PIN, HIGH);
-      for (int speed = 0; speed <= 200; speed++) {
-        motors.setLeftSpeed(speed);
-        motors.setRightSpeed(speed);
-        delay(2);
-      }
-      moving = true;
+      drive(DRIVE_SPEED);
       break;
 
     case 's':
-      digitalWrite(LED_PIN, HIGH);
-      for (int speed = 0; speed >= -200; speed--) {
-        motors.setLeftSpeed(speed);
-        motors.setRightSpeed(speed);
-        delay(2);
-      }
-      moving = true;
+      drive(-DRIVE_SPEED);
       break;
 
     case 'd':
-      digitalWrite(LED_PIN, HIGH);
-      motors.setLeftSpeed(TURN_SPEED);
-      motors.setRightSpeed(-TURN_SPEED);
-      delay(TURN_45_MS);
-      motors.setLeftSpeed(0);
-      motors.setRightSpeed(0);
+      startPivot(TURN_SPEED, -TURN_SPEED);
       break;
 
     case 'q':
-      digitalWrite(LED_PIN, HIGH);
-      motors.setRightSpeed(TURN_SPEED);
-      motors.setLeftSpeed(-TURN_SPEED);
-      delay(TURN_45_MS);
-      motors.setLeftSpeed(0);
-      motors.setRightSpeed(0);
+      startPivot(-TURN_SPEED, TURN_SPEED);
       break;
 
     case 'w':
-      headservo.write(HEAD_HIGH);
+      headservo.write(HEAD_DOWN);
       break;
 
     case 'x':
-      headservo.write(HEAD_LOW);
+      headservo.write(HEAD_UP);
       break;
 
     case 'c':
@@ -118,31 +107,61 @@ void handleCommand(char c) {
   }
 }
 
+// Ligne droite : la rampe part de la vitesse actuelle (pas d'à-coup si la commande est répétée)
+void drive(int speed) {
+  digitalWrite(LED_PIN, HIGH);
+  pivoting = false;
+  targetSpeed = speed;
+}
+
+void startPivot(int leftSpeed, int rightSpeed) {
+  digitalWrite(LED_PIN, HIGH);
+  currentSpeed = 0;
+  targetSpeed = 0;
+  pivoting = true;
+  pivotStartMs = millis();
+  motors.setSpeeds(leftSpeed, rightSpeed);
+}
+
 void stopMotors() {
   digitalWrite(LED_PIN, LOW);
-  motors.setLeftSpeed(0);
-  motors.setRightSpeed(0);
-  moving = false;
+  currentSpeed = 0;
+  targetSpeed = 0;
+  pivoting = false;
+  motors.setSpeeds(0, 0);
+}
+
+// Appelée à chaque tour de loop() : fait avancer la rampe et termine le pivot sans bloquer
+void updateMotors() {
+  unsigned long now = millis();
+
+  if (pivoting) {
+    if (now - pivotStartMs >= TURN_45_MS) stopMotors();
+    return;
+  }
+
+  if (currentSpeed != targetSpeed && now - lastRampMs >= RAMP_STEP_MS) {
+    lastRampMs = now;
+    currentSpeed += (targetSpeed > currentSpeed) ? 1 : -1;
+    motors.setSpeeds(currentSpeed, currentSpeed);
+  }
+
+  if (COMMAND_TIMEOUT_MS > 0 && (currentSpeed != 0 || targetSpeed != 0) &&
+      now - lastCommandMs > COMMAND_TIMEOUT_MS) {
+    stopMotors();
+  }
 }
 
 void loop() {
-  char recvChar;
-
-  while (1) {
-    if (blueToothSerial.available()) {
-      recvChar = blueToothSerial.read();
-      handleCommand(recvChar);
-    }
-
-    if (Serial.available()) {
-      recvChar = Serial.read();
-      handleCommand(recvChar);
-    }
-
-    if (COMMAND_TIMEOUT_MS > 0 && moving && millis() - lastCommandMs > COMMAND_TIMEOUT_MS) {
-      stopMotors();
-    }
+  if (blueToothSerial.available()) {
+    handleCommand(blueToothSerial.read());
   }
+
+  if (Serial.available()) {
+    handleCommand(Serial.read());
+  }
+
+  updateMotors();
 }
 
 void setupBlueToothConnection() {
@@ -153,7 +172,7 @@ void setupBlueToothConnection() {
   blueToothSerial.print("\r\n+STOAUT=1\r\n"); // Permit Paired device to connect me
   blueToothSerial.print("\r\n+STAUTO=0\r\n"); // Auto-connection should be forbidden here
   delay(2000); // This delay is required.
-  blueToothSerial.print("\r\n+INQ=1\r\n"); //make the slave bluetooth inquirable 
+  blueToothSerial.print("\r\n+INQ=1\r\n"); //make the slave bluetooth inquirable
   Serial.println("The slave bluetooth is inquirable!");
   delay(2000); // This delay is required.
   // Vide les réponses AT du module pour qu'elles ne soient pas lues comme des commandes
