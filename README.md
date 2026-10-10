@@ -186,6 +186,9 @@ Warning: attempt 1 of 10: not in sync: resp=0x00
 
 ### Contraintes matérielles (non corrigeables par logiciel)
 
-- **Pin 12** : partagée entre le servo pince et le bouton utilisateur du Zumo (`ZUMO_BUTTON`). Ne pas appuyer sur le bouton : il met le signal du servo à la masse. Pour supprimer le conflit, brancher la pince sur une pin libre (par exemple 11 ou 2) et modifier `CLAW_PIN`.
+- **Pin 12** : partagée entre le servo pince et le bouton utilisateur du Zumo (`ZUMO_BUTTON`).
+  - *Rôle du bouton* : bouton libre à la disposition du programme (rien d'automatique, contrairement au bouton reset). Un appui relie la pin 12 à la masse ; il se lit avec `pinMode(12, INPUT_PULLUP)` + `digitalRead(12)` (`LOW` = appuyé) ou la classe `Pushbutton` de Pololu. Usage typique : « appuyer pour démarrer » (sumo robot), changer de mode, lancer une calibration.
+  - *Dans ce projet* : le bouton n'est pas utilisé. Un appui met le signal du servo pince à la masse : la pince ne reçoit plus d'impulsions (elle peut se relâcher ou trembler) et la sortie de l'Arduino débite directement vers la masse. Sans conséquence tant qu'on n'appuie pas — **ne pas appuyer sur ce bouton**.
+  - *Pour utiliser le bouton* : brancher la pince sur une pin libre (par exemple 11 ou 2) et modifier `CLAW_PIN`. Choix actuel : pas de changement, tout fonctionne.
 - **Pins 4 et 5** : utilisées par la barre de capteurs de ligne Zumo ; le câblage actuel est incompatible avec son montage.
 - **Pin 6** : sur les cartes à ATmega32U4 (Leonardo), le buzzer du Zumo est sur la pin 6 ; sans incidence ici (ATmega328P, buzzer sur la pin 3).
