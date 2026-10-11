@@ -9,10 +9,11 @@
 #define HEAD_PIN     4
 #define CLAW_PIN     12
 
-#define DRIVE_SPEED  200
+// Vitesse réglable par l'appli : chiffre '0'..'9' → (n + 1) × SPEED_PER_LEVEL (40..400)
+// Elle s'applique à la ligne droite (z/s) comme aux pivots (q/d).
+#define SPEED_PER_LEVEL     40
+#define SPEED_LEVEL_DEFAULT 4    // 200 au démarrage
 #define RAMP_STEP_MS 2    // +1 de vitesse toutes les 2 ms (0→200 en ~400 ms)
-
-#define TURN_SPEED   200
 
 // Arrêt de sécurité si aucune commande reçue pendant ce délai en mouvement (0 = désactivé).
 // Désactivé : l'appli n'envoie qu'un caractère à l'appui et un espace (stop) au relâchement,
@@ -52,7 +53,10 @@ int currentSpeed = 0;  // vitesse commune des deux moteurs en ligne droite
 int targetSpeed = 0;
 unsigned long lastRampMs = 0;
 
+int moveSpeed = (SPEED_LEVEL_DEFAULT + 1) * SPEED_PER_LEVEL;
+
 bool pivoting = false;
+int pivotDir = 0;  // +1 = droite, -1 = gauche
 
 unsigned long lastCommandMs = 0;
 
@@ -79,21 +83,28 @@ void handleCommand(char c) {
 
   lastCommandMs = millis();
   Serial.print(c);
+
+  // Chiffre : réglage de la vitesse, sans interrompre le mouvement en cours
+  if (c >= '0' && c <= '9') {
+    setSpeedLevel(c - '0');
+    return;
+  }
+
   switch (c) {
     case 'z':
-      drive(DRIVE_SPEED);
+      drive(moveSpeed);
       break;
 
     case 's':
-      drive(-DRIVE_SPEED);
+      drive(-moveSpeed);
       break;
 
     case 'd':
-      startPivot(TURN_SPEED, -TURN_SPEED);
+      startPivot(1);
       break;
 
     case 'q':
-      startPivot(-TURN_SPEED, TURN_SPEED);
+      startPivot(-1);
       break;
 
     // Servos : se déplacent vers la butée tant que la touche est maintenue (espace au relâchement)
@@ -128,12 +139,21 @@ void drive(int speed) {
 }
 
 // Pivot sur place : continue jusqu'à la commande suivante (espace envoyé au relâchement)
-void startPivot(int leftSpeed, int rightSpeed) {
+void startPivot(int dir) {
   digitalWrite(LED_PIN, HIGH);
   currentSpeed = 0;
   targetSpeed = 0;
   pivoting = true;
-  motors.setSpeeds(leftSpeed, rightSpeed);
+  pivotDir = dir;
+  motors.setSpeeds(dir * moveSpeed, -dir * moveSpeed);
+}
+
+// Change la vitesse ; un mouvement en cours la prend en compte immédiatement (rampe en ligne droite)
+void setSpeedLevel(int level) {
+  moveSpeed = (level + 1) * SPEED_PER_LEVEL;
+  if (targetSpeed > 0) targetSpeed = moveSpeed;
+  else if (targetSpeed < 0) targetSpeed = -moveSpeed;
+  if (pivoting) motors.setSpeeds(pivotDir * moveSpeed, -pivotDir * moveSpeed);
 }
 
 void stopMotors() {

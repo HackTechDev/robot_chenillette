@@ -61,6 +61,7 @@ Les commandes sont des caractères ASCII uniques, acceptés depuis Bluetooth ou 
 | `x` | Tête : se déplace progressivement vers `HEAD_UP` jusqu'à la commande suivante |
 | `c` | Pince : s'ouvre progressivement (vers `CLAW_OPEN`) jusqu'à la commande suivante |
 | `v` | Pince : se ferme progressivement (vers `CLAW_CLOSE`) jusqu'à la commande suivante |
+| `0` … `9` | Vitesse de déplacement : `(n + 1) × 40` (40 à 400), sans interrompre le mouvement en cours |
 | `\r`, `\n` | Ignorés (fins de ligne du moniteur série / de l'appli) |
 | tout autre | Stop immédiat : moteurs à 0, LED éteinte, servos figés à leur position actuelle |
 
@@ -86,8 +87,10 @@ Le module se configure automatiquement au démarrage :
 
 ### Vitesses
 
-- `DRIVE_SPEED` (défaut `200`) — vitesse en ligne droite (`z` / `s`), plage -400 à 400.
-- `TURN_SPEED` (défaut `200`) — vitesse des chenilles pendant un pivot (`q` / `d`). Diminuer pour tourner plus lentement et viser plus précisément.
+La vitesse se règle depuis l'appli (slider vertical à gauche du pad), qui envoie un chiffre `0` à `9`. Elle s'applique à la ligne droite (`z` / `s`) comme aux pivots (`q` / `d`), et un mouvement en cours la prend en compte immédiatement (via la rampe en ligne droite).
+
+- `SPEED_PER_LEVEL` (défaut `40`) — écart entre deux niveaux : vitesse = `(niveau + 1) × SPEED_PER_LEVEL` (plage moteur : 0 à 400).
+- `SPEED_LEVEL_DEFAULT` (défaut `4`, soit `200`) — niveau au démarrage. L'appli renvoie le niveau de son slider à chaque connexion.
 
 ### Servos (ServoTimer2 en microsecondes)
 
@@ -196,6 +199,12 @@ Warning: attempt 1 of 10: not in sync: resp=0x00
 | Problème | Correction |
 |----------|------------|
 | `w` / `x` / `c` / `v` envoyaient le servo directement en butée : impossible de choisir une position intermédiaire | Déplacement progressif (`updateServos()`, `SERVO_STEP_US` toutes les `SERVO_STEP_MS`) tant que la touche est maintenue ; l'espace envoyé au relâchement fige le servo à sa position actuelle (`stopServos()`) |
+
+### Vitesse réglable (cinquième passe)
+
+| Demande | Réalisation |
+|---------|-------------|
+| Régler la vitesse de déplacement depuis le smartphone | Commandes `0`–`9` → `setSpeedLevel()` ; vitesse commune ligne droite / pivot (`moveSpeed`), remplace `DRIVE_SPEED` et `TURN_SPEED` |
 
 ### Contraintes matérielles (non corrigeables par logiciel)
 
