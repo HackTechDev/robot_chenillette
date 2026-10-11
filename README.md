@@ -57,16 +57,16 @@ Les commandes sont des caractères ASCII uniques, acceptés depuis Bluetooth ou 
 | `s` | Reculer (rampe progressive depuis la vitesse actuelle jusqu'à -200) |
 | `d` | Pivoter à droite (jusqu'à la commande suivante) |
 | `q` | Pivoter à gauche (jusqu'à la commande suivante) |
-| `w` | Servo tête → position basse (`HEAD_DOWN`) |
-| `x` | Servo tête → position haute (`HEAD_UP`) |
-| `c` | Pince ouverte |
-| `v` | Pince fermée |
+| `w` | Tête : se déplace progressivement vers `HEAD_DOWN` jusqu'à la commande suivante |
+| `x` | Tête : se déplace progressivement vers `HEAD_UP` jusqu'à la commande suivante |
+| `c` | Pince : s'ouvre progressivement (vers `CLAW_OPEN`) jusqu'à la commande suivante |
+| `v` | Pince : se ferme progressivement (vers `CLAW_CLOSE`) jusqu'à la commande suivante |
 | `\r`, `\n` | Ignorés (fins de ligne du moniteur série / de l'appli) |
-| tout autre | Stop immédiat (moteurs à 0, LED éteinte) |
+| tout autre | Stop immédiat : moteurs à 0, LED éteinte, servos figés à leur position actuelle |
 
 ### Arrêt de sécurité
 
-L'appli télécommande (`../robot_chenillette_telecommande`) envoie le caractère de la touche à l'appui (`z`, `s`, `q`, `d`) et un **espace** au relâchement, sans répéter la commande pendant l'appui. Le robot bouge donc tant que la touche est maintenue et s'arrête au relâchement.
+L'appli télécommande (`../robot_chenillette_telecommande`) envoie le caractère de la touche à l'appui (`z`, `s`, `q`, `d`, `w`, `x`, `c`, `v`) et un **espace** au relâchement, sans répéter la commande pendant l'appui. Le robot (ou le servo) bouge donc tant que la touche est maintenue et s'arrête au relâchement ; les servos restent à la position atteinte.
 
 L'arrêt automatique par délai (`COMMAND_TIMEOUT_MS`) est **désactivé** (`0`) : avec cette appli, il couperait tout appui long. En cas de perte de liaison, le module envoie un message d'état (`+BTSTATE:…`) qui arrête le robot. Pour une appli qui répète les commandes en continu, on peut le réactiver (par exemple `500`).
 
@@ -93,10 +93,11 @@ Le module se configure automatiquement au démarrage :
 
 | Constante   | Valeur par défaut | Description |
 |-------------|-------------------|-------------|
-| `HEAD_DOWN` | `1100` µs         | Position basse de la tête (commande `w`) |
-| `HEAD_UP`   | `750` µs          | Position haute de la tête (commande `x`) |
-| `CLAW_OPEN` | `2250` µs         | Pince ouverte (commande `c`) |
-| `CLAW_CLOSE`| `1550` µs (~85°)  | Pince fermée (commande `v`) |
+| `HEAD_DOWN` | `1100` µs         | Butée de la tête pour la commande `w` |
+| `HEAD_UP`   | `750` µs          | Butée de la tête pour la commande `x` (et position au démarrage) |
+| `CLAW_OPEN` | `2250` µs         | Butée pince ouverte, commande `c` (et position au démarrage) |
+| `CLAW_CLOSE`| `1550` µs (~85°)  | Butée pince fermée, commande `v` |
+| `SERVO_STEP_US` / `SERVO_STEP_MS` | `10` µs / `20` ms | Vitesse des servos (500 µs/s) : augmenter `SERVO_STEP_US` pour aller plus vite |
 
 > **Note** : ServoTimer2 accepte des valeurs entre **750 µs** (0°) et **2250 µs** (180°) ; toute valeur hors plage est automatiquement ramenée dans ces bornes.
 
@@ -189,6 +190,12 @@ Warning: attempt 1 of 10: not in sync: resp=0x00
 |----------|------------|
 | `q` / `d` faisaient un pivot fixe de 45° (`TURN_45_MS`), quelle que soit la durée de l'appui | Pivot continu jusqu'à la commande suivante ; l'appli envoie désormais un espace au relâchement des boutons ↺ / ↻ |
 | L'arrêt par délai de 500 ms supposait une appli qui répète les commandes ; l'appli n'envoie qu'un caractère à l'appui et un espace au relâchement (constaté en enregistrant les commandes reçues) | `COMMAND_TIMEOUT_MS` mis à `0` ; la perte de liaison reste détectée via `+BTSTATE` |
+
+### Servos progressifs (quatrième passe)
+
+| Problème | Correction |
+|----------|------------|
+| `w` / `x` / `c` / `v` envoyaient le servo directement en butée : impossible de choisir une position intermédiaire | Déplacement progressif (`updateServos()`, `SERVO_STEP_US` toutes les `SERVO_STEP_MS`) tant que la touche est maintenue ; l'espace envoyé au relâchement fige le servo à sa position actuelle (`stopServos()`) |
 
 ### Contraintes matérielles (non corrigeables par logiciel)
 

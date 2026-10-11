@@ -34,8 +34,9 @@ Required libraries (install via Arduino Library Manager or `arduino-cli lib inst
 4. **`drive(speed)`** — sets `targetSpeed`; the ramp starts from `currentSpeed`.
 5. **`startPivot(left, right)`** — starts a pivot on the spot; it lasts until the next command (the app sends `' '` on release).
 6. **`stopMotors()`** — immediate stop, LED off, resets state.
-7. **`updateMotors()`** — called every `loop()`: advances the ramp by 1 every `RAMP_STEP_MS` and enforces the optional `COMMAND_TIMEOUT_MS` failsafe (disabled by default).
-8. **`loop()`** — reads one char from each serial link, then calls `updateMotors()`.
+7. **`stopServos()` / `updateServos()`** — servo targets are set by `w`/`x`/`c`/`v`; `updateServos()` (every `loop()`) moves `headPos`/`clawPos` toward their target by `SERVO_STEP_US` every `SERVO_STEP_MS`; `stopServos()` (on any stop char) freezes them where they are.
+8. **`updateMotors()`** — called every `loop()`: advances the ramp by 1 every `RAMP_STEP_MS` and enforces the optional `COMMAND_TIMEOUT_MS` failsafe (disabled by default).
+9. **`loop()`** — reads one char from each serial link, then calls `updateMotors()` and `updateServos()`.
 
 ## Pin Assignment
 
@@ -61,12 +62,12 @@ Each command is a single ASCII character sent over Bluetooth:
 | `s` | Recule (rampe depuis la vitesse actuelle → -200, reste à -200) |
 | `d` | Pivote à droite jusqu'à la commande suivante |
 | `q` | Pivote à gauche jusqu'à la commande suivante |
-| `w` | Servo tête → position basse (`HEAD_DOWN` = 1100 µs) |
-| `x` | Servo tête → position haute (`HEAD_UP` = 750 µs) |
-| `c` | Pince ouverte (`CLAW_OPEN` = 180°) |
-| `v` | Pince fermée (`CLAW_CLOSE` = ~85°, calibrable) |
+| `w` | Tête → vers `HEAD_DOWN` (1100 µs), progressif jusqu'à la commande suivante |
+| `x` | Tête → vers `HEAD_UP` (750 µs), progressif jusqu'à la commande suivante |
+| `c` | Pince → vers `CLAW_OPEN` (2250 µs), progressif jusqu'à la commande suivante |
+| `v` | Pince → vers `CLAW_CLOSE` (~1550 µs), progressif jusqu'à la commande suivante |
 | `\r`, `\n` | Ignorés (fins de ligne) |
-| tout autre | Stop (moteurs à 0, LED off) |
+| tout autre | Stop (moteurs à 0, LED off, servos figés à leur position actuelle) |
 
 **Protocole de l'appli** (`../robot_chenillette_telecommande`, React Native) : caractère envoyé à l'appui, espace (`' '` → stop) au relâchement, **aucune répétition** pendant l'appui. Ne pas réactiver un délai de keep-alive (`COMMAND_TIMEOUT_MS`) sans faire répéter les commandes par l'appli. Une perte de liaison produit un message `+BTSTATE:…` du module, qui tombe dans `default` → stop.
 
@@ -79,6 +80,7 @@ ServoTimer2 utilise des microsecondes : `750`=0°, `1500`=90°, `2250`=180°. **
 - **`COMMAND_TIMEOUT_MS`** (défaut `0` = désactivé) — délai de keep-alive ; voir le protocole de l'appli ci-dessus.
 - **`RAMP_STEP_MS`** (défaut `2` ms) — intervalle entre deux incréments de vitesse de la rampe.
 - **`TURN_SPEED`** (défaut `200`) — vitesse des chenilles pendant un pivot.
+- **`SERVO_STEP_US` / `SERVO_STEP_MS`** (défaut `10` µs / `20` ms) — vitesse de déplacement des servos.
 - **`HEAD_DOWN`** (défaut `1100` µs) — position basse de la tête (commande `w`). Ajuster selon la mécanique.
 - **`HEAD_UP`** (défaut `750` µs) — position haute de la tête (commande `x`). Minimum absolu = 750 µs.
 - **`CLAW_CLOSE`** (défaut `1550` µs ≈ 85°) — position de fermeture de la pince. Augmenter si le servo force en fermant.

@@ -30,12 +30,23 @@
 #define CLAW_OPEN   SERVO_180
 #define CLAW_CLOSE  1550  // ~85° — à calibrer
 
+// Mouvement progressif des servos tant que la touche est maintenue : SERVO_STEP_US toutes les SERVO_STEP_MS
+// (10 µs / 20 ms = 500 µs/s : tête ~0,7 s, pince ~1,4 s de butée à butée)
+#define SERVO_STEP_US  10
+#define SERVO_STEP_MS  20
+
 SoftwareSerial blueToothSerial(RxD, TxD);
 
 ZumoMotors motors;
 
 ServoTimer2 headservo;
 ServoTimer2 clawservo;
+
+int headPos = HEAD_UP;
+int headTarget = HEAD_UP;
+int clawPos = CLAW_OPEN;
+int clawTarget = CLAW_OPEN;
+unsigned long lastServoStepMs = 0;
 
 int currentSpeed = 0;  // vitesse commune des deux moteurs en ligne droite
 int targetSpeed = 0;
@@ -56,10 +67,10 @@ void setup() {
 
   // Servos ensuite, un par un, pour étaler l'appel de courant
   headservo.attach(HEAD_PIN);
-  headservo.write(HEAD_UP);
+  headservo.write(headPos);
   delay(500);
   clawservo.attach(CLAW_PIN);
-  clawservo.write(CLAW_OPEN);
+  clawservo.write(clawPos);
 }
 
 void handleCommand(char c) {
@@ -85,24 +96,26 @@ void handleCommand(char c) {
       startPivot(-TURN_SPEED, TURN_SPEED);
       break;
 
+    // Servos : se déplacent vers la butée tant que la touche est maintenue (espace au relâchement)
     case 'w':
-      headservo.write(HEAD_DOWN);
+      headTarget = HEAD_DOWN;
       break;
 
     case 'x':
-      headservo.write(HEAD_UP);
+      headTarget = HEAD_UP;
       break;
 
     case 'c':
-      clawservo.write(CLAW_OPEN);
+      clawTarget = CLAW_OPEN;
       break;
 
     case 'v':
-      clawservo.write(CLAW_CLOSE);
+      clawTarget = CLAW_CLOSE;
       break;
 
     default:
       stopMotors();
+      stopServos();
       break;
   }
 }
@@ -131,6 +144,29 @@ void stopMotors() {
   motors.setSpeeds(0, 0);
 }
 
+// Fige les servos à leur position actuelle
+void stopServos() {
+  headTarget = headPos;
+  clawTarget = clawPos;
+}
+
+// Rapproche pos de target d'au plus SERVO_STEP_US ; renvoie true si la position a changé
+bool stepToward(int &pos, int target) {
+  if (pos == target) return false;
+  if (pos < target) pos = min(pos + SERVO_STEP_US, target);
+  else pos = max(pos - SERVO_STEP_US, target);
+  return true;
+}
+
+// Appelée à chaque tour de loop() : déplacement progressif des servos
+void updateServos() {
+  unsigned long now = millis();
+  if (now - lastServoStepMs < SERVO_STEP_MS) return;
+  lastServoStepMs = now;
+  if (stepToward(headPos, headTarget)) headservo.write(headPos);
+  if (stepToward(clawPos, clawTarget)) clawservo.write(clawPos);
+}
+
 // Appelée à chaque tour de loop() : fait avancer la rampe et applique l'arrêt de sécurité
 void updateMotors() {
   unsigned long now = millis();
@@ -157,6 +193,7 @@ void loop() {
   }
 
   updateMotors();
+  updateServos();
 }
 
 void setupBlueToothConnection() {
